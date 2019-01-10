@@ -164,8 +164,8 @@ class RitualStep {
   static RitualStep fromMap(Map map) {
     RitualStep step = new RitualStep();
     step.id = map[columnId];
-    step.title = map[columnTitle];
-    step.description = map[columnDescription];
+    step.title = map[columnTitle].toString();
+    step.description = map[columnDescription].toString();
     step.ritualId = map[columnRitualId];
     return step;
   }
@@ -211,10 +211,13 @@ class ComplitionStats {
   String description;
 }
 
+enum RitualType { Morning, Evening, Weekly }
+
 class Ritual {
   int id;
   String title;
   DateTime creationTime;
+  RitualType type;
 
   Database _db;
 
@@ -226,23 +229,32 @@ class Ritual {
   static final String columnId = "_id";
   static final String columnTitle = "description";
   static final String columnCreation = "timeStamp";
+  static final String columnType = "ritualType";
+  static final List<String> columns = [
+    columnId,
+    columnTitle,
+    columnCreation,
+    columnType
+  ];
 
   static String getTableCreation() {
     return '''create table $table (
        $columnId integer primary key autoincrement, 
        $columnTitle string,
+       $columnType integer,
        $columnCreation integer DEFAULT CURRENT_TIMESTAMP)
     ''';
   }
 
-  static Future<Ritual> insert(String title, Database db) async {
-    final id = await db.insert(table, {columnTitle: title});
+  static Future<Ritual> insert(
+      String title, RitualType type, Database db) async {
+    final id =
+        await db.insert(table, {columnTitle: title, columnType: type.index});
     return get(id, db);
   }
 
   static Future<List<Ritual>> getAvilableRituals(Database db) async {
-    List<Map> maps =
-        await db.query(table, columns: [columnId, columnTitle, columnCreation]);
+    List<Map> maps = await db.query(table, columns: columns);
     return maps.map((map) => fromMap(db, map)).toList();
   }
 
@@ -259,16 +271,15 @@ class Ritual {
     ritual._db = db;
     ritual.creationTime = DateTime.parse(map[columnCreation]);
     ritual.id = map[columnId];
-    ritual.title = map[columnTitle];
+    ritual.title = map[columnTitle].toString();
+    ritual.type = RitualType.values[map[columnType]];
     return ritual;
   }
 
   // Private parts.
   static Future<Map> _getById(int id, Database db) async {
     List<Map> maps = await db.query(table,
-        columns: [columnId, columnTitle, columnCreation],
-        where: "$columnId = ?",
-        whereArgs: [id]);
+        columns: columns, where: "$columnId = ?", whereArgs: [id]);
     if (maps.length > 0) {
       return maps.first;
     }
@@ -341,7 +352,8 @@ class RitualsProvider {
         Ritual ritual;
         ritual = await Ritual.get(1, dbReady).catchError((e) async {
           print("Creating evening ritual. $e");
-          ritual = await Ritual.insert("Evening ritual", dbReady);
+          ritual = await Ritual.insert(
+              "Evening ritual", RitualType.Evening, dbReady);
           await ritual.insertStep(
               "Check emails", "You don't want to forget something.");
           await ritual.insertStep(
@@ -376,8 +388,8 @@ class RitualsProvider {
     });
   }
 
-  Future<Ritual> createRitual(String title) {
-    return db.then((dbReady) => Ritual.insert(title, dbReady));
+  Future<Ritual> createRitual(String title, RitualType type) {
+    return db.then((dbReady) => Ritual.insert(title, type, dbReady));
   }
 
   Future<Ritual> getRitual(int ritualId) async {

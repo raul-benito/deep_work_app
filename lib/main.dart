@@ -34,7 +34,7 @@ class MyHomePage extends StatefulWidget {
   final RitualsProvider _provider;
 
   MyHomePage({Key key, this.title})
-      : _provider = RitualsProvider("rituals811.db"),
+      : _provider = RitualsProvider("rituals.db"),
         super(key: key);
 
   // This widget is the home page of your application. It is stateful, meaning

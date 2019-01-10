@@ -22,12 +22,18 @@ class _RitualsEditPageState extends State<RitualsEditPage> {
             return Text("Loading...");
           }
           _steps = snapshot.data;
+          int order = 1;
           return ReorderableListView(
+              scrollDirection: Axis.vertical,
               children: snapshot.data
                   .map((f) => ListTile(
-                      key: ValueKey(f),
-                      title: Text(f.title),
-                      subtitle: Text(f.description)))
+                        leading:
+                            CircleAvatar(child: Text((order++).toString())),
+                        key: ValueKey(f),
+                        title: Text(f.title),
+                        subtitle: Text(f.description),
+                        trailing: Icon(Icons.drag_handle),
+                      ))
                   .toList(),
               onReorder: (int oldIndex, int newIndex) async {
                 if (oldIndex < newIndex) {
@@ -42,48 +48,43 @@ class _RitualsEditPageState extends State<RitualsEditPage> {
         });
   }
 
-  Widget floatingButton() {
+  void _onCreationPressed() async {
     TextEditingController title = new TextEditingController();
     TextEditingController description = new TextEditingController();
-    return FloatingActionButton(
-      onPressed: () async {
-        final message = await showDialog<String>(
-            context: context,
-            builder: (_) {
-              return SimpleDialog(title: new Text("Adding a Step"), children: [
-                new Column(children: [
-                  new ListTile(
-                    leading: const Icon(Icons.title),
-                    title: new TextField(
-                      controller: title,
-                      decoration: new InputDecoration.collapsed(
-                        hintText: "Title",
-                      ),
-                    ),
+    final message = await showDialog<String>(
+        context: context,
+        builder: (_) {
+          return SimpleDialog(title: new Text("Adding a Step"), children: [
+            new Column(children: [
+              new ListTile(
+                leading: const Icon(Icons.title),
+                title: new TextField(
+                  controller: title,
+                  decoration: new InputDecoration.collapsed(
+                    hintText: "Title",
                   ),
-                  new ListTile(
-                      leading: const Icon(Icons.description),
-                      title: new TextField(
-                        controller: description,
-                        decoration: new InputDecoration(
-                          hintText: "Description",
-                        ),
-                      )),
-                  new RaisedButton(
-                      onPressed: () {
-                        widget.ritual.insertStep(title.text, description.text);
-                        Navigator.pop(context, "Created");
-                      },
-                      child: Text("Create")),
-                ])
-              ]);
-            });
-        if (message.isNotEmpty) {
-          setState(() {});
-        }
-      },
-      child: Icon(Icons.add),
-    );
+                ),
+              ),
+              new ListTile(
+                  leading: const Icon(Icons.description),
+                  title: new TextField(
+                    controller: description,
+                    decoration: new InputDecoration(
+                      hintText: "Description",
+                    ),
+                  )),
+              new RaisedButton(
+                  onPressed: () {
+                    widget.ritual.insertStep(title.text, description.text);
+                    Navigator.pop(context, "Created");
+                  },
+                  child: Text("Create")),
+            ])
+          ]);
+        });
+    if (message.isNotEmpty) {
+      setState(() {});
+    }
   }
 
   //@override
@@ -95,8 +96,24 @@ class _RitualsEditPageState extends State<RitualsEditPage> {
               // Here we take the value from the MyHomePage object that was created by
               // the App.build method, and use it to set our appbar title.
               title: Text("Ritual " + widget.ritual.title),
+              actions: <Widget>[
+                IconButton(
+                  icon: Icon(Icons.edit),
+                  tooltip: 'Edit',
+                  onPressed: () {
+                    //TODO: Edit ritual title.
+                  },
+                )
+              ],
             ),
-            floatingActionButton: floatingButton(),
+            floatingActionButton: FloatingActionButton.extended(
+              elevation: 4.0,
+              icon: const Icon(Icons.add),
+              label: const Text('Add a step'),
+              onPressed: _onCreationPressed,
+            ),
+            floatingActionButtonLocation:
+                FloatingActionButtonLocation.centerFloat,
             body: body()));
   }
 }
