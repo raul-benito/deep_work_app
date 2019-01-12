@@ -11,7 +11,30 @@ class RitualsEditPage extends StatefulWidget {
 }
 
 class _RitualsEditPageState extends State<RitualsEditPage> {
-  List<RitualStep> _steps;
+  Widget buildList(List<RitualStep> steps) {
+    int order = 1;
+    return ReorderableListView(
+        scrollDirection: Axis.vertical,
+        children: steps
+            .map((f) => ListTile(
+                  leading: CircleAvatar(child: Text((order++).toString())),
+                  key: ValueKey(f),
+                  title: Text(f.title),
+                  subtitle: Text(f.description),
+                  trailing: Icon(Icons.drag_handle),
+                ))
+            .toList(),
+        onReorder: (int oldIndex, int newIndex) async {
+          if (oldIndex < newIndex) {
+            // removing the item at oldIndex will shorten the list by 1.
+            newIndex -= 1;
+          }
+          final RitualStep element = steps.removeAt(oldIndex);
+          steps.insert(newIndex, element);
+          await widget.ritual.updateRitualStepOrder(steps);
+          setState(() {});
+        });
+  }
 
   Widget body() {
     return FutureBuilder(
@@ -21,66 +44,46 @@ class _RitualsEditPageState extends State<RitualsEditPage> {
           if (!snapshot.hasData) {
             return Text("Loading...");
           }
-          _steps = snapshot.data;
-          int order = 1;
-          return ReorderableListView(
-              scrollDirection: Axis.vertical,
-              children: snapshot.data
-                  .map((f) => ListTile(
-                        leading:
-                            CircleAvatar(child: Text((order++).toString())),
-                        key: ValueKey(f),
-                        title: Text(f.title),
-                        subtitle: Text(f.description),
-                        trailing: Icon(Icons.drag_handle),
-                      ))
-                  .toList(),
-              onReorder: (int oldIndex, int newIndex) async {
-                if (oldIndex < newIndex) {
-                  // removing the item at oldIndex will shorten the list by 1.
-                  newIndex -= 1;
-                }
-                final RitualStep element = _steps.removeAt(oldIndex);
-                _steps.insert(newIndex, element);
-                await widget.ritual.updateRitualStepOrder(_steps);
-                setState(() {});
-              });
+          return buildList(snapshot.data);
         });
   }
 
-  void _onCreationPressed() async {
+  Widget buildStepDialog() {
     TextEditingController title = new TextEditingController();
     TextEditingController description = new TextEditingController();
+    return Column(children: [
+      new ListTile(
+        leading: const Icon(Icons.title),
+        title: new TextField(
+          controller: title,
+          decoration: new InputDecoration(
+            hintText: "Title",
+          ),
+        ),
+      ),
+      new ListTile(
+          leading: const Icon(Icons.description),
+          title: new TextField(
+            controller: description,
+            decoration: new InputDecoration(
+              hintText: "Description",
+            ),
+          )),
+      new RaisedButton(
+          onPressed: () {
+            widget.ritual.insertStep(title.text, description.text);
+            Navigator.pop(context, "Created");
+          },
+          child: Text("Create")),
+    ]);
+  }
+
+  void _onCreationPressed() async {
     final message = await showDialog<String>(
         context: context,
         builder: (_) {
-          return SimpleDialog(title: new Text("Adding a Step"), children: [
-            new Column(children: [
-              new ListTile(
-                leading: const Icon(Icons.title),
-                title: new TextField(
-                  controller: title,
-                  decoration: new InputDecoration.collapsed(
-                    hintText: "Title",
-                  ),
-                ),
-              ),
-              new ListTile(
-                  leading: const Icon(Icons.description),
-                  title: new TextField(
-                    controller: description,
-                    decoration: new InputDecoration(
-                      hintText: "Description",
-                    ),
-                  )),
-              new RaisedButton(
-                  onPressed: () {
-                    widget.ritual.insertStep(title.text, description.text);
-                    Navigator.pop(context, "Created");
-                  },
-                  child: Text("Create")),
-            ])
-          ]);
+          return SimpleDialog(
+              title: new Text("Adding a Step"), children: [buildStepDialog()]);
         });
     if (message.isNotEmpty) {
       setState(() {});

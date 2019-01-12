@@ -14,16 +14,6 @@ class RitualsListPage extends StatefulWidget {
   _RitualsPageState createState() => _RitualsPageState(provider: this.provider);
 }
 
-class _RitualView extends StatefulWidget {
-  final Ritual ritual;
-  final bool editing;
-
-  _RitualView({Key key, @required this.ritual, this.editing}) : super(key: key);
-
-  @override
-  _RitualViewState createState() => _RitualViewState();
-}
-
 Widget getListTileIcon(RitualType type) {
   IconData iconType;
   switch (type) {
@@ -40,36 +30,44 @@ Widget getListTileIcon(RitualType type) {
   return Icon(iconType, color: Colors.grey);
 }
 
+class _RitualView extends StatefulWidget {
+  final Ritual ritual;
+  final bool editing;
+
+  _RitualView({Key key, @required this.ritual, this.editing}) : super(key: key);
+
+  @override
+  _RitualViewState createState() => _RitualViewState();
+}
+
 class _RitualViewState extends State<_RitualView> {
-  Widget _buildListTileTailingIcon(Ritual ritual) {
+  Widget _buildListTileTailingIcon(Ritual ritual, RitualState state) {
     if (widget.editing) {
       return IconButton(icon: Icon(Icons.edit), onPressed: _onLongPressed);
     }
-    return FutureBuilder(
-        future: ritual.isCompletedForNow(),
-        builder: ((BuildContext context, AsyncSnapshot<bool> snapshot) {
-          if (!snapshot.hasData) {
-            return CircularProgressIndicator();
-          }
-          return Container(
-              width: 78,
-              child: Row(children: <Widget>[
-                IconButton(
-                  icon: Icon(FontAwesomeIcons.chartLine,
-                      color: Colors.black54, size: 20.0),
-                  onPressed: () {
-                    Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => RitualStatsPage(ritual: ritual),
-                        ));
-                  },
-                ),
-                Icon(!snapshot.data ? Icons.keyboard_arrow_right : Icons.done,
-                    color: !snapshot.data ? Colors.black54 : Colors.lightGreen,
-                    size: 30.0)
-              ]));
-        }));
+    return Container(
+        width: 78,
+        child: Row(children: <Widget>[
+          IconButton(
+            icon: Icon(FontAwesomeIcons.chartLine,
+                color: Colors.black54, size: 20.0),
+            onPressed: () {
+              Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => RitualStatsPage(ritual: ritual),
+                  ));
+            },
+          ),
+          Icon(
+              state == RitualState.Active
+                  ? Icons.keyboard_arrow_right
+                  : state == RitualState.Done ? Icons.done : Icons.call_missed,
+              color: state != RitualState.Done
+                  ? Colors.black54
+                  : Colors.lightGreen,
+              size: 30.0)
+        ]));
   }
 
   Widget buildSubTitle() {
@@ -78,10 +76,10 @@ class _RitualViewState extends State<_RitualView> {
         builder:
             ((BuildContext context, AsyncSnapshot<ComplitionStats> snapshot) {
           if (!snapshot.hasData) {
-            if (!snapshot.error) {
+            if (snapshot.hasError) {
               return Text(snapshot.error.toString());
             }
-            return Text("Loading...");
+            return CircularProgressIndicator();
           }
           return Row(
             children: <Widget>[
@@ -128,8 +126,8 @@ class _RitualViewState extends State<_RitualView> {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder(
-        future: widget.ritual.isCompletedForNow(),
-        builder: ((BuildContext context, AsyncSnapshot<bool> snapshot) =>
+        future: widget.ritual.getState(),
+        builder: ((BuildContext context, AsyncSnapshot<RitualState> snapshot) =>
             ListTile(
                 contentPadding:
                     EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
@@ -147,14 +145,17 @@ class _RitualViewState extends State<_RitualView> {
                       color: Colors.black, fontWeight: FontWeight.bold),
                 ),
                 subtitle: buildSubTitle(),
-                trailing: _buildListTileTailingIcon(widget.ritual),
-                onLongPress: _onLongPressed,
-                onTap: snapshot.hasData && snapshot.data ? null : _onTap)));
+                trailing:
+                    _buildListTileTailingIcon(widget.ritual, snapshot.data),
+                onLongPress: widget.editing ? null : _onLongPressed,
+                onTap: widget.editing ||
+                        snapshot.hasData && snapshot.data != RitualState.Active
+                    ? null
+                    : _onTap)));
   }
 }
 
 class _RitualEdit extends StatefulWidget {
-  RitualType type = RitualType.Evening;
   final RitualsProvider provider;
 
   _RitualEdit({Key key, @required this.provider}) : super(key: key);
@@ -163,19 +164,36 @@ class _RitualEdit extends StatefulWidget {
 }
 
 class _RitualEditState extends State<_RitualEdit> {
+  RitualType type = RitualType.Evening;
+  RitualDay day = RitualDay.Monday;
   TextEditingController title = new TextEditingController();
+
+  Widget buildWeekdayPick() {
+    return DropdownButton<RitualDay>(
+        value: day,
+        onChanged: (RitualDay newDay) {
+          setState(() {
+            day = newDay;
+          });
+        },
+        items: RitualDay.values
+            .map((RitualDay d) => DropdownMenuItem<RitualDay>(
+                  value: d,
+                  child: Text(d.toString().split(".")[1]),
+                ))
+            .toList());
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Column(children: [
+    List<Widget> children = [
       ListTile(
-          leading: getListTileIcon(widget.type),
+          leading: getListTileIcon(type),
           title: DropdownButton<RitualType>(
-            value: widget.type,
+            value: type,
             onChanged: (RitualType result) {
               setState(() {
-                print(widget.type);
-                widget.type = result;
+                type = result;
               });
             },
             items: <DropdownMenuItem<RitualType>>[
@@ -197,26 +215,38 @@ class _RitualEditState extends State<_RitualEdit> {
         leading: const Icon(Icons.title),
         title: new TextField(
           controller: title,
-          decoration: new InputDecoration.collapsed(
+          decoration: new InputDecoration(
             hintText: "Name",
           ),
         ),
       ),
       new RaisedButton(
           onPressed: () async {
-            final ritual =
-                await widget.provider.createRitual(title.text, widget.type);
+            final ritual = await widget.provider.createRitual(title.text, type,
+                sceduleInformation: day.index + 1);
             Navigator.of(context, rootNavigator: true).pop(ritual.id);
           },
           child: Text("Create")),
-    ]);
+    ];
+
+    if (type == RitualType.Weekly) {
+      children.insert(
+          1,
+          ListTile(
+            leading: Text("Every"),
+            title: buildWeekdayPick(),
+          ));
+    }
+    return Column(children: children);
   }
 }
+
+enum SelectionFilter { Current, All }
 
 class _RitualsPageState extends State<RitualsListPage> {
   final RitualsProvider provider;
   bool editing = false;
-  RitualType type = RitualType.Evening;
+  SelectionFilter filter = SelectionFilter.Current;
 
   _RitualsPageState({@required this.provider});
 
@@ -235,6 +265,22 @@ class _RitualsPageState extends State<RitualsListPage> {
             builder: (BuildContext context) =>
                 RitualsEditPage(ritual: ritual)));
     setState(() {});
+  }
+
+  Widget buildSelectionTasks() {
+    return BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
+        currentIndex: filter.index,
+        onTap: (int idx) {
+          setState(() {
+            filter = SelectionFilter.values[idx];
+          });
+        },
+        items: [
+          BottomNavigationBarItem(
+              icon: Icon(Icons.playlist_play), title: new Text('Current')),
+          BottomNavigationBarItem(icon: Icon(Icons.toc), title: new Text('All'))
+        ]);
   }
 
 //@override
@@ -259,17 +305,33 @@ class _RitualsPageState extends State<RitualsListPage> {
             ],
           ),
           body: FutureBuilder(
-              future: provider.getRituals(),
+              future: provider.getRituals(filter == SelectionFilter.Current),
               builder: ((BuildContext context,
                   AsyncSnapshot<List<Ritual>> snapshot) {
                 if (!snapshot.hasData) {
                   if (snapshot.hasError) {
                     return Text(snapshot.error.toString());
                   }
-                  return Text("Loading...");
+                  return CircularProgressIndicator();
+                }
+                var items = snapshot.data;
+                if (items.isEmpty && filter != SelectionFilter.All) {
+                  return Center(
+                      child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: <Widget>[
+                        Image(
+                          image: AssetImage('images/floating-guru-96.png'),
+                          color: null,
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.center,
+                        ),
+                        Text("No rituals to conduct, rightnow...")
+                      ]));
                 }
                 return ListView(
-                  children: List.unmodifiable(snapshot.data
+                  children: List.unmodifiable(items
                       .map((f) => _RitualView(ritual: f, editing: editing))),
                 );
               })),
@@ -283,6 +345,7 @@ class _RitualsPageState extends State<RitualsListPage> {
               : null,
           floatingActionButtonLocation:
               FloatingActionButtonLocation.centerFloat,
+          bottomNavigationBar: editing ? null : buildSelectionTasks(),
         ));
   }
 }

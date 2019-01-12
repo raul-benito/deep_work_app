@@ -2,6 +2,10 @@ import 'dart:async';
 
 import 'package:sqflite/sqflite.dart';
 
+abstract class NotificationProvider {
+  void armNotification(Future<Ritual> ritual);
+}
+
 /// Instance of a ritual completion.
 class RitualComplete {
   int id;
@@ -212,12 +216,24 @@ class ComplitionStats {
 }
 
 enum RitualType { Morning, Evening, Weekly }
+enum RitualDay {
+  Monday,
+  Tuesday,
+  Wednesday,
+  Thursday,
+  Friday,
+  Saturday,
+  Sunday
+}
+enum RitualState { Done, Skip, Active }
 
 class Ritual {
   int id;
   String title;
   DateTime creationTime;
+  int scheduleInformation;
   RitualType type;
+  Future<RitualState> state;
 
   Database _db;
 
@@ -230,11 +246,13 @@ class Ritual {
   static final String columnTitle = "description";
   static final String columnCreation = "timeStamp";
   static final String columnType = "ritualType";
+  static final String columScheduleInformation = "scheduleInformation";
   static final List<String> columns = [
     columnId,
     columnTitle,
     columnCreation,
-    columnType
+    columnType,
+    columScheduleInformation
   ];
 
   static String getTableCreation() {
@@ -242,14 +260,19 @@ class Ritual {
        $columnId integer primary key autoincrement, 
        $columnTitle string,
        $columnType integer,
+       $columScheduleInformation integer,
        $columnCreation integer DEFAULT CURRENT_TIMESTAMP)
     ''';
   }
 
-  static Future<Ritual> insert(
-      String title, RitualType type, Database db) async {
-    final id =
-        await db.insert(table, {columnTitle: title, columnType: type.index});
+  static Future<Ritual> insert(String title, RitualType type, Database db,
+      {int sceduleInformation}) async {
+    print("XXXX:"+sceduleInformation.toString());
+    final id = await db.insert(table, {
+      columnTitle: title,
+      columnType: type.index,
+      columScheduleInformation: sceduleInformation
+    });
     return get(id, db);
   }
 
@@ -273,6 +296,8 @@ class Ritual {
     ritual.id = map[columnId];
     ritual.title = map[columnTitle].toString();
     ritual.type = RitualType.values[map[columnType]];
+    ritual.scheduleInformation = map[columScheduleInformation];
+    print("type:" + ritual.type.toString() +"day: "+ritual.scheduleInformation.toString());
     return ritual;
   }
 
@@ -296,14 +321,9 @@ class Ritual {
   }
 
   Future<List<DateTime>> getComplitions(DateTime arround) async {
-    try {
-      final instances = await RitualComplete.getByDateRangeAndRitualId(
-          id, arround.subtract(Duration(days: 32)), arround, _db);
-      return instances.map((f) => f.completionTime).toList();
-    } catch (e) {
-      print(e.toString());
-      throw e;
-    }
+    final instances = await RitualComplete.getByDateRangeAndRitualId(
+        id, arround.subtract(Duration(days: 32)), arround, _db);
+    return instances.map((f) => f.completionTime).toList();
   }
 
   void markCompletion() {
@@ -311,34 +331,71 @@ class Ritual {
   }
 
   Future<ComplitionStats> getComplitionStats() async {
-    try {
-      final stats = await RitualComplete.getLongestSteak(id, _db);
-      if (stats.maxStride < 40) stats.maxStride = 40;
-      stats.description = "${stats.currentStride} / ${stats.maxStride}";
-      stats.ratio = stats.currentStride / stats.maxStride;
-      return stats;
-    } catch (e) {
-      print(e);
-      throw e;
-    }
+    final stats = await RitualComplete.getLongestSteak(id, _db);
+    if (stats.maxStride < 40) stats.maxStride = 40;
+    stats.description = "${stats.currentStride} / ${stats.maxStride}";
+    stats.ratio = stats.currentStride / stats.maxStride;
+    return stats;
   }
 
-  Future<bool> isCompletedForNow() async {
+  Future<RitualState> getState() async {
+    if (state == null) {
+      state = _getState();
+    }
+    return state;
+  }
+
+  Future<RitualState> _getState() async {
     final now = DateTime.now();
-    final completion = await RitualComplete.getByDateRangeAndRitualId(
-        id, DateTime(now.year, now.month, now.day), now, _db);
-    return completion.isNotEmpty;
+    final today = DateTime(now.year, now.month, now.day);
+    final completion =
+        await RitualComplete.getByDateRangeAndRitualId(id, today, now, _db);
+    switch (type) {
+      case RitualType.Morning:
+        {
+          if (completion.isNotEmpty) return RitualState.Done;
+          if (now.hour > 12) return RitualState.Skip;
+          return RitualState.Active;
+        }
+      case RitualType.Evening:
+        {
+          if (completion.isNotEmpty) return RitualState.Done;
+          if (now.hour > 12) return RitualState.Active;
+          final yesterdayCompletion =
+              await RitualComplete.getByDateRangeAndRitualId(
+                  id, today.subtract(Duration(days: 1)), now, _db);
+          if (yesterdayCompletion.isNotEmpty) return RitualState.Done;
+          return RitualState.Skip;
+        }
+      case RitualType.Weekly:
+        {
+          int expectingDay = scheduleInformation;
+          if (completion.isNotEmpty) return RitualState.Done;
+          if (now.weekday == expectingDay) return RitualState.Active;
+          final lastWeekCompletion =
+              await RitualComplete.getByDateRangeAndRitualId(
+                  id,
+                  today.subtract(
+                      Duration(days: ((now.weekday - expectingDay) % 7))),
+                  now,
+                  _db);
+          if (lastWeekCompletion.isNotEmpty) return RitualState.Done;
+          return RitualState.Skip;
+        }
+    }
+    return RitualState.Active;
   }
 }
 
 class RitualsProvider {
   Future<Database> db;
+  NotificationProvider _notificationProvider;
 
-  RitualsProvider(path) {
-    open(path);
+  RitualsProvider(path, this._notificationProvider) {
+    _open(path);
   }
 
-  Future<Database> open(String path) async {
+  void _open(String path) async {
     db = new Future(() {
       final dbInitial = openDatabase(path, version: 1,
           onCreate: (Database db, int version) async {
@@ -358,47 +415,41 @@ class RitualsProvider {
               "Check emails", "You don't want to forget something.");
           await ritual.insertStep(
               "Say the magic words", "Paolov dog you know.");
-          // TEST
-          dbReady.insert(
-              "ritualsComplete", {"ritualId": 1, "timeStamp": "2018-12-20"});
-          dbReady.insert(
-              "ritualsComplete", {"ritualId": 1, "timeStamp": "2018-12-21"});
-          dbReady.insert(
-              "ritualsComplete", {"ritualId": 1, "timeStamp": "2018-12-22"});
-          dbReady.insert(
-              "ritualsComplete", {"ritualId": 1, "timeStamp": "2018-12-24"});
-          dbReady.insert(
-              "ritualsComplete", {"ritualId": 1, "timeStamp": "2018-12-25"});
-          dbReady.insert(
-              "ritualsComplete", {"ritualId": 1, "timeStamp": "2018-12-30"});
-          dbReady.insert(
-              "ritualsComplete", {"ritualId": 1, "timeStamp": "2018-12-31"});
-          dbReady.insert(
-              "ritualsComplete", {"ritualId": 1, "timeStamp": "2018-10-20"});
-          dbReady.insert(
-              "ritualsComplete", {"ritualId": 1, "timeStamp": "2018-11-01"});
-          dbReady.insert(
-              "ritualsComplete", {"ritualId": 1, "timeStamp": "2018-11-02"});
-          dbReady.insert(
-              "ritualsComplete", {"ritualId": 1, "timeStamp": "2018-09-03"});
-          print("ddddd1");
         });
         return dbInitial;
       });
     });
   }
 
-  Future<Ritual> createRitual(String title, RitualType type) {
-    return db.then((dbReady) => Ritual.insert(title, type, dbReady));
+  Future<Ritual> createRitual(String title, RitualType type,
+      {int sceduleInformation}) {
+    return db.then((dbReady) {
+      final ritual = Ritual.insert(title, type, dbReady,
+          sceduleInformation: sceduleInformation);
+      _notificationProvider.armNotification(ritual);
+      return ritual;
+    });
   }
 
   Future<Ritual> getRitual(int ritualId) async {
     return db.then((dbReady) => Ritual.get(ritualId, dbReady));
   }
 
-  Future<List<Ritual>> getRituals() async {
+  Future<List<Ritual>> getRituals(bool active) async {
     return db.then((dbReady) async {
-      return Ritual.getAvilableRituals(dbReady);
+      var first = Ritual.getAvilableRituals(dbReady);
+      if (active) {
+        var value = await first;
+        var result = new List<Ritual>();
+        var futures = value.map((ritual) async {
+          if ((await ritual.getState()) == RitualState.Active) {
+            result.add(ritual);
+          }
+        });
+        await Future.wait(futures);
+        return result;
+      }
+      return first;
     });
   }
 

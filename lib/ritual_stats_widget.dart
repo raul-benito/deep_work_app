@@ -52,7 +52,6 @@ class _RitualStatsPageState extends State<RitualStatsPage> {
         builder:
             (BuildContext context, AsyncSnapshot<List<DateTime>> snapshot) {
           EventList events = EventList();
-          print(snapshot);
           if (!snapshot.hasData) {
             return Text("loading");
           }
