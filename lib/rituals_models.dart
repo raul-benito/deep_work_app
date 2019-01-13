@@ -398,12 +398,71 @@ class RitualsProvider {
         Ritual ritual;
         ritual = await Ritual.get(1, dbReady).catchError((e) async {
           print("Creating evening ritual. $e");
-          ritual = await Ritual.insert(
-              "Evening ritual", RitualType.Evening, dbReady);
-          await ritual.insertStep(
-              "Check emails", "You don't want to forget something.");
-          await ritual.insertStep(
-              "Say the magic words", "Paolov dog you know.");
+          final rituals = {
+            "Evening ritual": [
+              [RitualType.Evening, null],
+              [
+                "Reply to(or schedule) anything urgent.",
+                "Check your email and reply (if it is less than 5 min) the "
+                    "urgent ones, or schedule some tiem to reply them tomorrow."
+              ],
+              [
+                "Transfer mentals task and notes to your official task list.",
+                "Empty your mind of worries for enjoying the rest of the day"
+              ],
+              [
+                "Skim over all tasks and check next calendar days.",
+                "Notice anything important and select what you want to "
+                    "concentrate tomorrow"
+              ],
+              [
+                "Create a rough plan for tomorrow.",
+                "How should be tomorrow, how you will address the items see "
+                    "above. Book time in your calendar for them."
+              ],
+              ["Say the magic words", "Paolov dog you know."]
+            ],
+            "Morning ritual": [
+              [RitualType.Morning, null],
+              ["Enjoy your coffee.", "Begin to wake up."],
+              [
+                "Think about your day priorities.",
+                "Check your calendar and todo list, "
+                    "create a new entry in your Bullet Journal"
+                    "(if you have one), prepare for acomplish the best"
+              ],
+              [
+                "Quick Exercise",
+                "Do 7 minutes or some push-ups. Move your body"
+              ]
+            ],
+            "End of week ritual": [
+              [RitualType.Weekly, 7],
+              [
+                "Reflect on your week.",
+                "Read your Bullet Journal, think what work well this week, "
+                    "what can be improved"
+              ],
+              [
+                "Check your priorities.",
+                "Are you working towards your goals? If not, what can you drop? "
+                    "what do you have to do more?"
+              ],
+              [
+                "Plan something nice for next week.",
+                "A dinner with friends. A movie night. A romantic week-end. "
+                    "Something to look forward."
+              ]
+            ]
+          };
+          rituals.forEach((key, value) async {
+            ritual = await Ritual.insert(key, value[0][0], dbReady,
+                scheduleInformation: value[0][1]);
+            value.skip(1).forEach((f) async {
+              var v = f as List<String>;
+              await ritual.insertStep(v[0], v[1]);
+            });
+          });
         });
         return dbInitial;
       });

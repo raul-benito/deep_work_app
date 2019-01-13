@@ -1,3 +1,4 @@
+import 'package:deep_work_app/generic_widgets.dart';
 import 'package:deep_work_app/ritual_widget.dart';
 import 'package:deep_work_app/rituals_list.dart';
 import 'package:deep_work_app/rituals_models.dart';
@@ -12,9 +13,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Working Rituals',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
+      theme: getTheme(),
       home: MyHomePage(),
     );
   }
@@ -35,7 +34,7 @@ class MyHomePage extends StatelessWidget {
 
   MyHomePage({Key key}) : super(key: key) {
     _notificationProvider = AppNotificationProvider(onSelectNotification);
-    _provider = RitualsProvider("ritualsv1.db", _notificationProvider);
+    _provider = RitualsProvider("rituals_v1.db", _notificationProvider);
   }
 
   //@override

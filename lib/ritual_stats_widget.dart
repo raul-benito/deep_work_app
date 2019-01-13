@@ -1,3 +1,4 @@
+import 'package:deep_work_app/generic_widgets.dart';
 import 'package:deep_work_app/rituals_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_calendar_carousel/classes/event.dart';
@@ -21,6 +22,7 @@ class _RitualStatsPageState extends State<RitualStatsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
         appBar: AppBar(
+          elevation: getDefaultElevation(),
           title: Text("Stats for " + this.widget.ritual.title),
         ),
         body: create());

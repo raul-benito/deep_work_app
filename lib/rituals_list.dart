@@ -1,3 +1,4 @@
+import 'package:deep_work_app/generic_widgets.dart';
 import 'package:deep_work_app/ritual_edit.dart';
 import 'package:deep_work_app/ritual_stats_widget.dart';
 import 'package:deep_work_app/ritual_widget.dart';
@@ -289,8 +290,7 @@ class _RitualsPageState extends State<RitualsListPage> {
         tag: 'list',
         child: Scaffold(
           appBar: AppBar(
-            // Here we take the value from the MyHomePage object that was created by
-            // the App.build method, and use it to set our appbar title.
+            elevation: getDefaultElevation(),
             title: Text("Working Rituals"),
             actions: <Widget>[
               IconButton(
