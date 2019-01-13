@@ -33,8 +33,7 @@ class MyHomePage extends StatelessWidget {
     );
   }
 
-  MyHomePage({Key key})
-      : super(key: key) {
+  MyHomePage({Key key}) : super(key: key) {
     _notificationProvider = AppNotificationProvider(onSelectNotification);
     _provider = RitualsProvider("ritualsv1.db", _notificationProvider);
   }
@@ -63,20 +62,6 @@ class AppNotificationProvider extends NotificationProvider {
   @override
   void armNotification(Future<Ritual> ritualFuture) async {
     var ritual = await ritualFuture;
-    var time;
-    switch (ritual.type) {
-      case RitualType.Evening:
-        time = new Time(19, 30, 0);
-        break;
-
-      case RitualType.Morning:
-        time = new Time(8, 0, 0);
-        break;
-
-      case RitualType.Weekly:
-        time = new Time(0, 0, 0);
-        break;
-    }
     var androidPlatformChannelSpecifics = new AndroidNotificationDetails(
         'work_rituals id',
         'Work rituals notifications',
@@ -84,10 +69,33 @@ class AppNotificationProvider extends NotificationProvider {
     var iOSPlatformChannelSpecifics = new IOSNotificationDetails();
     var platformChannelSpecifics = new NotificationDetails(
         androidPlatformChannelSpecifics, iOSPlatformChannelSpecifics);
+    var time;
+    switch (ritual.type) {
+      case RitualType.Evening:
+        time = Time(19, 30, 0);
+        break;
+
+      case RitualType.Morning:
+        time = Time(8, 0, 0);
+        break;
+
+      case RitualType.Weekly:
+        Day day = List.of(Day.values).firstWhere(
+            (day) => day.value == ((ritual.scheduleInformation + 1) % 7 + 1));
+        return flutterLocalNotificationsPlugin.showWeeklyAtDayAndTime(
+            ritual.id,
+            'Remember to take your ritual ' + ritual.title,
+            '',
+            day,
+            Time(8, 0, 0),
+            platformChannelSpecifics,
+            payload: ritual.id.toString());
+    }
+
     await flutterLocalNotificationsPlugin.showDailyAtTime(
         ritual.id,
         'Remember to take your ritual ' + ritual.title,
-        'Body',
+        '',
         time,
         platformChannelSpecifics,
         payload: ritual.id.toString());

@@ -7,7 +7,7 @@ abstract class NotificationProvider {
 }
 
 /// Instance of a ritual completion.
-class RitualComplete {
+class RitualCompletion {
   int id;
   int ritualId;
   DateTime completionTime;
@@ -26,47 +26,42 @@ class RitualComplete {
     ''';
   }
 
-  static Future<RitualComplete> insert(int ritualId, Database db) async {
-    RitualComplete ritualComplete = new RitualComplete();
-    ritualComplete.id = await db.insert(table, {columnRitual: ritualId});
-    ritualComplete.ritualId = ritualId;
-    var value =
-        await _getById(ritualComplete.id, db).then((map) => map[columnDone]);
-    ritualComplete.completionTime = DateTime.tryParse(value);
+  static Future<RitualCompletion> insert(int ritualId, Database db) async {
+    final id = await db.insert(table, {columnRitual: ritualId});
+    return get(id, db);
+  }
+
+  static RitualCompletion _fromMap(Map map) {
+    RitualCompletion ritualComplete = new RitualCompletion();
+    ritualComplete.completionTime = DateTime.parse(map[columnDone]);
+    ritualComplete.id = map[columnId];
+    ritualComplete.ritualId = map[columnRitual];
     return ritualComplete;
   }
 
-  static Future<RitualComplete> get(int completionId, Database db) async {
+  static Future<RitualCompletion> get(int completionId, Database db) async {
     Map map = await _getById(completionId, db);
-    if (map != null) {
-      RitualComplete ritualComplete = new RitualComplete();
-      ritualComplete.completionTime = DateTime.parse(map[columnDone]);
-      ritualComplete.id = map[columnId];
-      ritualComplete.ritualId = map[columnRitual];
-      return ritualComplete;
+    if (map == null) {
+      return Future.error("No completion by that id.");
     }
-    return Future.error("No completion by that id.");
+    return _fromMap(map);
   }
 
-  static Future<List<RitualComplete>> getByDateRangeAndRitualId(
+  static Future<List<RitualCompletion>> getByDateRangeAndRitualId(
       int ritualId, DateTime from, DateTime to, Database db) async {
-    final results = List<RitualComplete>();
+    final results = List<RitualCompletion>();
     List<Map> maps = await db.query(table,
         columns: [columnId, columnDone, columnRitual],
         where:
             '$columnRitual = ? and $columnDone BETWEEN date(?) AND date(?,+"1 day")',
         whereArgs: [ritualId, from.toIso8601String(), to.toIso8601String()]);
     maps.forEach((map) {
-      RitualComplete ritualComplete = new RitualComplete();
-      ritualComplete.completionTime = DateTime.parse(map[columnDone]);
-      ritualComplete.id = map[columnId];
-      ritualComplete.ritualId = map[columnRitual];
-      results.add(ritualComplete);
+      results.add(_fromMap(map));
     });
     return results;
   }
 
-  static Future<ComplitionStats> getLongestSteak(
+  static Future<CompletionStats> getLongestSteak(
       int ritualId, Database db) async {
     final filterBySingleDate =
         "(select distinct(date($columnDone)) as $columnDone from $table where $columnRitual=$ritualId)";
@@ -89,7 +84,7 @@ class RitualComplete {
           (f) => DateTime.parse(f[columnDone]) == yesterday,
           orElse: () => {"streak": 0});
     }
-    return ComplitionStats()
+    return CompletionStats()
       ..ritualId = ritualId
       ..maxStride = maps.isEmpty ? 0 : maps.first["streak"]
       ..currentStride = todayValue["streak"];
@@ -207,7 +202,7 @@ class RitualStep {
   }
 }
 
-class ComplitionStats {
+class CompletionStats {
   int ritualId;
   double ratio = 0;
   int maxStride = 0;
@@ -246,13 +241,13 @@ class Ritual {
   static final String columnTitle = "description";
   static final String columnCreation = "timeStamp";
   static final String columnType = "ritualType";
-  static final String columScheduleInformation = "scheduleInformation";
+  static final String columnScheduleInformation = "scheduleInformation";
   static final List<String> columns = [
     columnId,
     columnTitle,
     columnCreation,
     columnType,
-    columScheduleInformation
+    columnScheduleInformation
   ];
 
   static String getTableCreation() {
@@ -260,23 +255,22 @@ class Ritual {
        $columnId integer primary key autoincrement, 
        $columnTitle string,
        $columnType integer,
-       $columScheduleInformation integer,
+       $columnScheduleInformation integer,
        $columnCreation integer DEFAULT CURRENT_TIMESTAMP)
     ''';
   }
 
   static Future<Ritual> insert(String title, RitualType type, Database db,
-      {int sceduleInformation}) async {
-    print("XXXX:"+sceduleInformation.toString());
+      {int scheduleInformation}) async {
     final id = await db.insert(table, {
       columnTitle: title,
       columnType: type.index,
-      columScheduleInformation: sceduleInformation
+      columnScheduleInformation: scheduleInformation
     });
     return get(id, db);
   }
 
-  static Future<List<Ritual>> getAvilableRituals(Database db) async {
+  static Future<List<Ritual>> getRituals(Database db) async {
     List<Map> maps = await db.query(table, columns: columns);
     return maps.map((map) => fromMap(db, map)).toList();
   }
@@ -296,8 +290,7 @@ class Ritual {
     ritual.id = map[columnId];
     ritual.title = map[columnTitle].toString();
     ritual.type = RitualType.values[map[columnType]];
-    ritual.scheduleInformation = map[columScheduleInformation];
-    print("type:" + ritual.type.toString() +"day: "+ritual.scheduleInformation.toString());
+    ritual.scheduleInformation = map[columnScheduleInformation];
     return ritual;
   }
 
@@ -320,18 +313,18 @@ class Ritual {
     newOrder.forEach((f) async => await f.updateOrder(i++, _db));
   }
 
-  Future<List<DateTime>> getComplitions(DateTime arround) async {
-    final instances = await RitualComplete.getByDateRangeAndRitualId(
-        id, arround.subtract(Duration(days: 32)), arround, _db);
+  Future<List<DateTime>> getCompletions(DateTime around) async {
+    final instances = await RitualCompletion.getByDateRangeAndRitualId(
+        id, around.subtract(Duration(days: 32)), around, _db);
     return instances.map((f) => f.completionTime).toList();
   }
 
   void markCompletion() {
-    RitualComplete.insert(id, _db);
+    RitualCompletion.insert(id, _db);
   }
 
-  Future<ComplitionStats> getComplitionStats() async {
-    final stats = await RitualComplete.getLongestSteak(id, _db);
+  Future<CompletionStats> getCompletionStats() async {
+    final stats = await RitualCompletion.getLongestSteak(id, _db);
     if (stats.maxStride < 40) stats.maxStride = 40;
     stats.description = "${stats.currentStride} / ${stats.maxStride}";
     stats.ratio = stats.currentStride / stats.maxStride;
@@ -349,39 +342,35 @@ class Ritual {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final completion =
-        await RitualComplete.getByDateRangeAndRitualId(id, today, now, _db);
+        await RitualCompletion.getByDateRangeAndRitualId(id, today, now, _db);
     switch (type) {
       case RitualType.Morning:
-        {
-          if (completion.isNotEmpty) return RitualState.Done;
-          if (now.hour > 12) return RitualState.Skip;
-          return RitualState.Active;
-        }
+        if (completion.isNotEmpty) return RitualState.Done;
+        if (now.hour > 12) return RitualState.Skip;
+        return RitualState.Active;
+
       case RitualType.Evening:
-        {
-          if (completion.isNotEmpty) return RitualState.Done;
-          if (now.hour > 12) return RitualState.Active;
-          final yesterdayCompletion =
-              await RitualComplete.getByDateRangeAndRitualId(
-                  id, today.subtract(Duration(days: 1)), now, _db);
-          if (yesterdayCompletion.isNotEmpty) return RitualState.Done;
-          return RitualState.Skip;
-        }
+        if (completion.isNotEmpty) return RitualState.Done;
+        if (now.hour > 12) return RitualState.Active;
+        final yesterdayCompletion =
+            await RitualCompletion.getByDateRangeAndRitualId(
+                id, today.subtract(Duration(days: 1)), now, _db);
+        if (yesterdayCompletion.isNotEmpty) return RitualState.Done;
+        return RitualState.Skip;
+
       case RitualType.Weekly:
-        {
-          int expectingDay = scheduleInformation;
-          if (completion.isNotEmpty) return RitualState.Done;
-          if (now.weekday == expectingDay) return RitualState.Active;
-          final lastWeekCompletion =
-              await RitualComplete.getByDateRangeAndRitualId(
-                  id,
-                  today.subtract(
-                      Duration(days: ((now.weekday - expectingDay) % 7))),
-                  now,
-                  _db);
-          if (lastWeekCompletion.isNotEmpty) return RitualState.Done;
-          return RitualState.Skip;
-        }
+        int expectingDay = scheduleInformation;
+        if (completion.isNotEmpty) return RitualState.Done;
+        if (now.weekday == expectingDay) return RitualState.Active;
+        final lastWeekCompletion =
+            await RitualCompletion.getByDateRangeAndRitualId(
+                id,
+                today.subtract(
+                    Duration(days: ((now.weekday - expectingDay) % 7))),
+                now,
+                _db);
+        if (lastWeekCompletion.isNotEmpty) return RitualState.Done;
+        return RitualState.Skip;
     }
     return RitualState.Active;
   }
@@ -401,7 +390,7 @@ class RitualsProvider {
           onCreate: (Database db, int version) async {
         print("Creating tables");
         await db.execute(Ritual.getTableCreation());
-        await db.execute(RitualComplete.getTableCreation());
+        await db.execute(RitualCompletion.getTableCreation());
         await db.execute(RitualStep.getTableCreation());
       });
       // Assure there is a ritual 0
@@ -422,10 +411,10 @@ class RitualsProvider {
   }
 
   Future<Ritual> createRitual(String title, RitualType type,
-      {int sceduleInformation}) {
+      {int scheduleInformation}) {
     return db.then((dbReady) {
       final ritual = Ritual.insert(title, type, dbReady,
-          sceduleInformation: sceduleInformation);
+          scheduleInformation: scheduleInformation);
       _notificationProvider.armNotification(ritual);
       return ritual;
     });
@@ -437,7 +426,7 @@ class RitualsProvider {
 
   Future<List<Ritual>> getRituals(bool active) async {
     return db.then((dbReady) async {
-      var first = Ritual.getAvilableRituals(dbReady);
+      var first = Ritual.getRituals(dbReady);
       if (active) {
         var value = await first;
         var result = new List<Ritual>();

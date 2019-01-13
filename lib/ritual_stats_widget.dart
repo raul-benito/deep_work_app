@@ -48,7 +48,7 @@ class _RitualStatsPageState extends State<RitualStatsPage> {
 
   Widget create() {
     return FutureBuilder(
-        future: this.widget.ritual.getComplitions(DateTime.now()),
+        future: this.widget.ritual.getCompletions(DateTime.now()),
         builder:
             (BuildContext context, AsyncSnapshot<List<DateTime>> snapshot) {
           EventList events = EventList();
@@ -63,7 +63,7 @@ class _RitualStatsPageState extends State<RitualStatsPage> {
                 color: Colors.red,
               ),
               onCalendarChanged: (dc) async {
-                final dates = await this.widget.ritual.getComplitions(dc);
+                final dates = await this.widget.ritual.getCompletions(dc);
                 fillEvents(events, dates);
               },
               weekFormat: false,

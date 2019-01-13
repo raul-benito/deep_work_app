@@ -31,12 +31,12 @@ class RitualsPage extends StatefulWidget {
 
 class _RitualsPageState extends State<RitualsPage> {
   int _step = 0;
-  List<StepView> _asteps = new List<StepView>();
+  List<StepView> _steps = new List<StepView>();
 
   void _incrementCounter(BuildContext context) {
     setState(() {
-      _asteps[_step].markDone();
-      if (_step + 1 == _asteps.length) {
+      _steps[_step].markDone();
+      if (_step + 1 == _steps.length) {
         widget.ritual.markCompletion();
         Navigator.pop(context, 'Done');
         return;
@@ -62,10 +62,10 @@ class _RitualsPageState extends State<RitualsPage> {
                   if (!snapshot.hasData) {
                     return Text("Loading...");
                   }
-                  _asteps =
+                  _steps =
                       List.unmodifiable(snapshot.data.map((f) => StepView(f)));
                   return Stepper(
-                    steps: this._asteps.map((f) => f.toStep()).toList(),
+                    steps: this._steps.map((f) => f.toStep()).toList(),
                     currentStep: this._step,
                     onStepContinue: () => this._incrementCounter(context),
                   );

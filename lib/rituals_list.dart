@@ -72,9 +72,9 @@ class _RitualViewState extends State<_RitualView> {
 
   Widget buildSubTitle() {
     return FutureBuilder(
-        future: widget.ritual.getComplitionStats(),
+        future: widget.ritual.getCompletionStats(),
         builder:
-            ((BuildContext context, AsyncSnapshot<ComplitionStats> snapshot) {
+            ((BuildContext context, AsyncSnapshot<CompletionStats> snapshot) {
           if (!snapshot.hasData) {
             if (snapshot.hasError) {
               return Text(snapshot.error.toString());
@@ -223,7 +223,7 @@ class _RitualEditState extends State<_RitualEdit> {
       new RaisedButton(
           onPressed: () async {
             final ritual = await widget.provider.createRitual(title.text, type,
-                sceduleInformation: day.index + 1);
+                scheduleInformation: day.index + 1);
             Navigator.of(context, rootNavigator: true).pop(ritual.id);
           },
           child: Text("Create")),
