@@ -34,8 +34,10 @@ Widget getListTileIcon(RitualType type) {
 class _RitualView extends StatefulWidget {
   final Ritual ritual;
   final bool editing;
+  final Function() onDelete;
 
-  _RitualView({Key key, @required this.ritual, this.editing}) : super(key: key);
+  _RitualView({Key key, @required this.ritual, this.onDelete, this.editing})
+      : super(key: key);
 
   @override
   _RitualViewState createState() => _RitualViewState();
@@ -44,10 +46,16 @@ class _RitualView extends StatefulWidget {
 class _RitualViewState extends State<_RitualView> {
   Widget _buildListTileTailingIcon(Ritual ritual, RitualState state) {
     if (widget.editing) {
-      return IconButton(icon: Icon(Icons.edit), onPressed: _onLongPressed);
+      return Container(
+          width: 98,
+          child: Row(children: <Widget>[
+            IconButton(
+                icon: Icon(Icons.delete_forever), onPressed: _onDeletePressed),
+            IconButton(icon: Icon(Icons.edit), onPressed: _onLongPressed)
+          ]));
     }
     return Container(
-        width: 78,
+        width: 98,
         child: Row(children: <Widget>[
           IconButton(
             icon: Icon(FontAwesomeIcons.chartLine,
@@ -65,7 +73,7 @@ class _RitualViewState extends State<_RitualView> {
                   ? Icons.keyboard_arrow_right
                   : state == RitualState.Done ? Icons.done : Icons.call_missed,
               color: state != RitualState.Done
-                  ? Colors.black54
+                  ? state == RitualState.Skip ? Colors.black26 : Colors.black54
                   : Colors.lightGreen,
               size: 30.0)
         ]));
@@ -110,6 +118,13 @@ class _RitualViewState extends State<_RitualView> {
         MaterialPageRoute(
           builder: (context) => RitualsEditPage(ritual: widget.ritual),
         ));
+  }
+
+  void _onDeletePressed() {
+    widget.ritual.delete();
+    if (widget.onDelete != null) {
+      widget.onDelete();
+    }
   }
 
   void _onTap() async {
@@ -330,9 +345,36 @@ class _RitualsPageState extends State<RitualsListPage> {
                         Text("No rituals to conduct, rightnow...")
                       ]));
                 }
+                List<Widget> itemsList;
+                itemsList = List.of(items.map((f) => Dismissible(
+                    key: Key(f.id.toString()),
+                    background: Container(
+                        color: Colors.amber,
+                        padding: const EdgeInsets.all(16.0),
+                        alignment: Alignment.centerLeft,
+                        child: Icon(Icons.snooze)),
+                    secondaryBackground: Container(
+                        color: Colors.red,
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.all(16.0),
+                        child: Icon(Icons.delete_forever)),
+                    onDismissed: (DismissDirection direction) async {
+                      var idx = items.indexOf(f);
+                      itemsList.removeAt(idx);
+                      if (direction == DismissDirection.endToStart) {
+                        await f.delete();
+                        setState(() {});
+                      }
+                    },
+                    child: _RitualView(
+                      ritual: f,
+                      editing: editing,
+                      onDelete: () {
+                        setState(() {});
+                      },
+                    ))));
                 return ListView(
-                  children: List.unmodifiable(items
-                      .map((f) => _RitualView(ritual: f, editing: editing))),
+                  children: itemsList,
                 );
               })),
           floatingActionButton: editing

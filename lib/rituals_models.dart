@@ -323,6 +323,11 @@ class Ritual {
     RitualCompletion.insert(id, _db);
   }
 
+  Future delete() async {
+    await _db.delete(table, where: "$columnId = ?", whereArgs: [id]);
+    return;
+  }
+
   Future<CompletionStats> getCompletionStats() async {
     final stats = await RitualCompletion.getLongestSteak(id, _db);
     if (stats.maxStride < 40) stats.maxStride = 40;
