@@ -380,7 +380,8 @@ class RitualsProvider {
   Future<Database> db;
   NotificationProvider _notificationProvider;
 
-  RitualsProvider(path, this._notificationProvider) {
+  void initialize(String path, NotificationProvider notificationProvider) {
+    this._notificationProvider = notificationProvider;
     _open(path);
   }
 

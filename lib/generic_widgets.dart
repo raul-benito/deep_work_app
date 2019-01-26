@@ -1,11 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-final ThemeData kIOSTheme = new ThemeData(
-);
+final ThemeData kIOSTheme = new ThemeData();
 
-final ThemeData kDefaultTheme = new ThemeData(
-);
+final ThemeData kDefaultTheme = new ThemeData();
 
 bool isIOS() {
   //return true;

@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:deep_work_app/generic_widgets.dart';
 import 'package:deep_work_app/rituals_models.dart';
 import 'package:flutter/material.dart';
@@ -59,22 +61,25 @@ class _RitualStatsPageState extends State<RitualStatsPage> {
           }
           fillEvents(events, snapshot.data);
           return Container(
-            margin: EdgeInsets.symmetric(horizontal: 16.0),
-            child: CalendarCarousel(
-              weekendTextStyle: TextStyle(
-                color: Colors.red,
-              ),
-              onCalendarChanged: (dc) async {
-                final dates = await this.widget.ritual.getCompletions(dc);
-                fillEvents(events, dates);
-              },
-              weekFormat: false,
-              height: 460.0,
-              daysHaveCircularBorder: true,
-              markedDatesMap: events,
-              markedDateShowIcon: true,
-            ),
-          );
+              child: Center(
+                  child: LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) =>
+                CalendarCarousel(
+                  weekendTextStyle: TextStyle(
+                    color: Colors.red,
+                  ),
+                  onCalendarChanged: (dc) async {
+                    final dates = await this.widget.ritual.getCompletions(dc);
+                    fillEvents(events, dates);
+                  },
+                  weekFormat: false,
+                  height: constraints.maxHeight,
+                  width: min(constraints.maxHeight, constraints.maxWidth),
+                  daysHaveCircularBorder: true,
+                  markedDatesMap: events,
+                  markedDateShowIcon: true,
+                ),
+          )));
         });
   }
 }

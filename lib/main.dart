@@ -19,10 +19,16 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class MyHomePage extends StatelessWidget {
-  AppNotificationProvider _notificationProvider;
-  RitualsProvider _provider;
-  BuildContext context;
+class MyHomePage extends StatefulWidget {
+  MyHomePage({Key key}) : super(key: key);
+
+  _MyHomePageState createState() => _MyHomePageState();
+}
+
+class _MyHomePageState extends State<MyHomePage> {
+  final AppNotificationProvider _notificationProvider =
+      AppNotificationProvider();
+  final RitualsProvider _provider = RitualsProvider();
 
   Future onSelectNotification(String payload) async {
     Ritual ritual = await _provider.getRitual(int.parse(payload));
@@ -32,14 +38,13 @@ class MyHomePage extends StatelessWidget {
     );
   }
 
-  MyHomePage({Key key}) : super(key: key) {
-    _notificationProvider = AppNotificationProvider(onSelectNotification);
-    _provider = RitualsProvider("rituals_v1.db", _notificationProvider);
+  _MyHomePageState() {
+    _notificationProvider.initialize(onSelectNotification);
+    _provider.initialize("rituals_v1.db", _notificationProvider);
   }
 
   //@override
   Widget build(BuildContext context) {
-    this.context = context;
     return RitualsListPage(provider: _provider);
   }
 }
@@ -47,13 +52,16 @@ class MyHomePage extends StatelessWidget {
 class AppNotificationProvider extends NotificationProvider {
   FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin;
 
-  AppNotificationProvider(SelectNotificationCallback callback) {
+  AppNotificationProvider() {
+    flutterLocalNotificationsPlugin = new FlutterLocalNotificationsPlugin();
+  }
+
+  void initialize(SelectNotificationCallback callback) {
     var initializationSettingsAndroid =
         new AndroidInitializationSettings('app_icon');
     var initializationSettingsIOS = new IOSInitializationSettings();
     var initializationSettings = new InitializationSettings(
         initializationSettingsAndroid, initializationSettingsIOS);
-    flutterLocalNotificationsPlugin = new FlutterLocalNotificationsPlugin();
     flutterLocalNotificationsPlugin.initialize(initializationSettings,
         onSelectNotification: callback);
   }
